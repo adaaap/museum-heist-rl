@@ -1,0 +1,7 @@
+# Core: the base policy is a tabular softmax, so no deep-learning dependency.
+numpy>=1.26
+gymnasium>=1.0
+matplotlib>=3.8
+
+# Convenience / dev
+pytest>=8.0

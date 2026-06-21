@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy-Gradient Lab - Museum Heist</title>
+<style>
+  :root{
+    --ground:#0C0F17; --surface:#141A26; --surface-2:#1B2333; --line:#2A3344;
+    --text:#E7EAF0; --muted:#8A94A6; --cam:#3DD6E0; --gold:#D7A23B; --alert:#FF5A52; --wall:#7B86A6;
+    --serif:Georgia,"Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Monaco,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1000px 560px at 88% -10%,rgba(61,214,224,.06),transparent 60%);}
+  .wrap{max-width:1200px;margin:0 auto;padding:30px 20px 64px;}
+  header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--cam);}
+  h1{font-family:var(--serif);font-weight:400;font-size:clamp(30px,5.5vw,52px);line-height:1.04;margin:.22em 0 .12em;}
+  h1 em{font-style:italic;color:var(--gold);}
+  .lede{color:var(--muted);max-width:70ch;margin:0;font-size:15.5px;}
+
+  .stage{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start;}
+  @media(max-width:880px){.stage{grid-template-columns:1fr;}}
+
+  .board{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .board .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:11px 15px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px;
+    letter-spacing:.05em;color:var(--muted);background:var(--surface-2);}
+  .board .top b{color:var(--cam);}
+  .board .top .verdict{padding:3px 10px;border-radius:999px;border:1px solid var(--line);}
+  .board .top .verdict[data-s=catch]{color:var(--cam);border-color:var(--cam);}
+  .board .top .verdict[data-s=escape]{color:var(--alert);border-color:var(--alert);}
+  .board .top .verdict[data-s=detect]{color:var(--gold);border-color:var(--gold);}
+  .canvas-wrap{position:relative;background:#070A11;}
+  canvas#mus{display:block;width:100%;background:#070A11;}
+  canvas#mus.editable{cursor:crosshair;}
+  .progress{height:4px;background:var(--surface-2);}
+  .progress i{display:block;height:100%;width:0;background:var(--cam);transition:width .1s linear;}
+  .hint{padding:9px 15px;font-family:var(--mono);font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);}
+  .hint b{color:var(--text);}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;padding:9px 15px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .legend i{width:14px;height:14px;flex:none;}
+  .legend i.thief{background:var(--alert);border-radius:50%;}
+  .legend i.cam{background:transparent;border:2px solid var(--cam);box-shadow:0 0 6px rgba(61,214,224,.5);}
+  .legend i.art{background:var(--gold);transform:rotate(45deg);width:11px;height:11px;}
+  .legend i.exit{background:transparent;border:2px dashed var(--muted);}
+
+  .panel{display:flex;flex-direction:column;gap:16px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 16px;}
+  .card h2{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 13px;}
+
+  .stat-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+  .stat{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;}
+  .stat .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+  .stat .v{font-family:var(--mono);font-size:19px;color:var(--text);margin-top:3px;}
+  .stat .v.cam{color:var(--cam);}
+
+  .ctrl{margin:0 0 14px;}
+  .ctrl:last-child{margin-bottom:0;}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+  .ctrl label .name{color:var(--text);}
+  .ctrl label .name small{color:var(--muted);font-family:var(--mono);font-size:11px;}
+  .ctrl label .val{font-family:var(--mono);color:var(--cam);}
+  input[type=range]{width:100%;accent-color:var(--cam);height:4px;cursor:pointer;}
+  input[type=range]:disabled{opacity:.4;cursor:not-allowed;}
+  input[type=number]{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    font-family:var(--mono);font-size:15px;border-radius:8px;padding:9px 11px;}
+  input[type=number]:disabled{opacity:.5;}
+
+  .btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{flex:1;font-family:var(--mono);font-size:13px;color:var(--text);background:var(--surface-2);
+    border:1px solid var(--line);border-radius:9px;padding:11px 10px;cursor:pointer;text-align:center;
+    transition:border-color .15s,background .15s;min-width:84px;}
+  .btn:hover:not(:disabled){border-color:#3a4763;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn.primary{background:var(--cam);color:var(--ground);border-color:var(--cam);font-weight:700;}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.07);}
+
+  .seg{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px;}
+  .seg button{flex:1;font-family:var(--mono);font-size:11.5px;color:var(--muted);background:none;border:0;padding:8px 4px;border-radius:6px;cursor:pointer;}
+  .seg button[aria-pressed=true]{background:var(--cam);color:var(--ground);font-weight:700;}
+  .seg button:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* snapshots */
+  .shots{margin-top:22px;}
+  .shots h2{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--cam);margin:0 0 4px;}
+  .shots p{margin:0 0 14px;color:var(--muted);font-size:13.5px;}
+  .strip{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;}
+  .shot{flex:none;width:170px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px;}
+  .shot canvas{display:block;width:100%;background:#070A11;border-radius:7px;}
+  .shot .lab{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px;display:flex;justify-content:space-between;}
+  .shot .lab b{color:var(--text);}
+  .strip .empty{color:var(--muted);font-family:var(--mono);font-size:12.5px;padding:30px 6px;}
+
+  details{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;}
+  summary{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--cam);}
+  details table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;}
+  details td{padding:5px 7px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top;}
+  details td:first-child{color:var(--text);font-family:var(--mono);white-space:nowrap;}
+  footer{margin-top:26px;color:#5f6b80;font-family:var(--mono);font-size:11px;line-height:1.7;}
+  footer a{color:var(--muted);}
+  :focus-visible{outline:2px solid var(--cam);outline-offset:2px;border-radius:6px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Policy-gradient lab · live</div>
+    <h1>Watch the guard <em>learn</em></h1>
+    <p class="lede">Place the walls and pick how many training episodes to run. Then watch the guard's watch-distribution take shape. You get a snapshot of every room's probability <b>every 2,000 episodes</b>. This is Monte-Carlo policy gradient (REINFORCE with a baseline), and it runs fully in your browser.</p>
+  </header>
+
+  <div class="stage">
+    <section class="board">
+      <div class="top">
+        <span>SQUARE <b id="sz">3×3</b> · <span id="ep">0</span> / <span id="tot">8000</span> ep</span>
+        <span id="modeLbl">setup: place your walls</span>
+        <span class="verdict" id="verdict" data-s="">-</span>
+      </div>
+      <div class="canvas-wrap"><canvas id="mus" class="editable" width="600" height="600" aria-label="Editable museum floor plan"></canvas></div>
+      <div class="progress"><i id="bar"></i></div>
+      <div class="hint" id="hint">Click an <b>edge between two rooms</b> to add or remove a wall. Then press <b>Run</b>. Brightness = how often the guard watches that room.</div>
+      <div class="legend">
+        <span><i class="thief"></i>Thief</span>
+        <span><i class="cam"></i>Active camera</span>
+        <span><i class="art"></i>Painting</span>
+        <span><i class="exit"></i>Start / exit</span>
+        <span style="color:#5f6b80">the thief, painting and start show up when you <b style="color:var(--text)">Play a game</b></span>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="card">
+        <h2>Live readout</h2>
+        <div class="stat-row">
+          <div class="stat"><div class="k">Catch rate</div><div class="v cam" id="cr">-</div></div>
+          <div class="stat"><div class="k">Entropy</div><div class="v" id="ent">-</div></div>
+          <div class="stat"><div class="k">Episodes</div><div class="v" id="epN">0</div></div>
+        </div>
+        <div class="ctrl" style="margin-top:14px;">
+          <label><span class="name">Training episodes <small>· course default 8000</small></span></label>
+          <input type="number" id="episodes" min="2000" max="60000" step="1000" value="8000"/>
+        </div>
+        <div class="btns" style="margin-top:6px;">
+          <button class="btn primary" id="run">▶ Run experiment</button>
+        </div>
+        <div class="btns" style="margin-top:8px;">
+          <button class="btn" id="play">🎬 Play a game</button>
+          <button class="btn" id="edit" disabled>✎ Edit walls</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Hyperparameters</h2>
+        <div class="ctrl">
+          <label><span class="name">τ temperature <small>· guard randomness</small></span><span class="val" id="vTau">1.0</span></label>
+          <input type="range" id="tau" min="0.1" max="4" step="0.05" value="1"/>
+        </div>
+        <div class="ctrl">
+          <label><span class="name">β prudence <small>· thief's camera fear</small></span><span class="val" id="vBeta">1.0</span></label>
+          <input type="range" id="beta" min="0" max="4" step="0.1" value="1"/>
+        </div>
+        <div class="ctrl">
+          <label><span class="name">α learning rate</span><span class="val" id="vAlpha">0.20</span></label>
+          <input type="range" id="alpha" min="0.01" max="0.5" step="0.01" value="0.2"/>
+        </div>
+        <div class="ctrl">
+          <label><span class="name">γ discount</span><span class="val" id="vGamma">0.99</span></label>
+          <input type="range" id="gamma" min="0.5" max="1" step="0.01" value="0.99"/>
+        </div>
+        <div class="ctrl">
+          <label><span class="name">Square size</span><span class="val" id="vN">3</span></label>
+          <input type="range" id="N" min="3" max="6" step="1" value="3"/>
+        </div>
+        <div class="ctrl">
+          <label><span class="name">Estimator <small>· baseline on/off</small></span></label>
+          <div class="seg" id="bl" role="group" aria-label="Baseline">
+            <button data-b="0" aria-pressed="false">REINFORCE</button>
+            <button data-b="1" aria-pressed="true">+ baseline</button>
+          </div>
+        </div>
+        <details>
+          <summary>Where these live in the project</summary>
+          <table>
+            <tr><td>τ, α, γ, batch</td><td>SoftmaxReinforceAgent · config.py</td></tr>
+            <tr><td>β</td><td>MuseumHeistEnv(beta=...) → Thief</td></tr>
+            <tr><td>walls</td><td>grid_with_walls(h, w, walls=[...])</td></tr>
+            <tr><td>episodes</td><td>ExperimentConfig.n_episodes</td></tr>
+          </table>
+        </details>
+      </div>
+    </aside>
+  </div>
+
+  <section class="shots">
+    <h2>Watch-distribution every 2,000 episodes</h2>
+    <p>Each card shows the guard's learned probability of watching each room. We save one card while training goes on. Brighter = watched more often.</p>
+    <div class="strip" id="strip"><div class="empty">Snapshots will appear here as the experiment runs.</div></div>
+  </section>
+
+  <footer>
+    Method: REINFORCE with a baseline (Monte-Carlo policy gradient). The policy is softmax-with-temperature and the thief uses a prudent shortest-path.<br>
+    Catch = +1 · escape = -1.
+  </footer>
+</div>
+
+<script>
+const CSS=getComputedStyle(document.documentElement), COL=k=>CSS.getPropertyValue('--'+k).trim();
+const $=s=>document.querySelector(s);
+const rint=k=>Math.floor(Math.random()*k);
+
+// === DEFAULTS (generated from experiments/config.py, do not edit by hand) ===
+const CFG = { N:3, tau:1.0, beta:1.0, alpha:0.2, gamma:0.99, batch:16, episodes:8000, maxSteps:50 };
+// === END DEFAULTS ===
+const S={ N:CFG.N, tau:CFG.tau, beta:CFG.beta, alpha:CFG.alpha, gamma:CFG.gamma, batch:CFG.batch, target:CFG.episodes, baseline:true };
+const SNAP=2000;
+let walls=new Set();   // open square by default (matches config.py; click edges to add walls)
+
+// ---------- graph ----------
+let n, ADJ;
+function rebuild(){
+  n=S.N*S.N; ADJ=Array.from({length:n},()=>[]);
+  for(let r=0;r<S.N;r++)for(let c=0;c<S.N;c++){ const a=r*S.N+c;
+    [[0,1],[1,0]].forEach(([dr,dc])=>{ const nr=r+dr,nc=c+dc; if(nr>=S.N||nc>=S.N)return;
+      const b=nr*S.N+nc; if(!walls.has(a+'_'+b)){ ADJ[a].push(b); ADJ[b].push(a); } }); }
+  ADJ.forEach(l=>l.sort((x,y)=>x-y));
+}
+function reachable(src){ const seen=new Uint8Array(n);seen[src]=1;const q=[src],out=[src];
+  while(q.length){const v=q.shift();for(const w of ADJ[v])if(!seen[w]){seen[w]=1;q.push(w);out.push(w);}} return out; }
+function dijkstra(s,t,cost){ if(s===t)return[s];
+  const dist=new Float64Array(n).fill(Infinity),prev=new Int32Array(n).fill(-1),vis=new Uint8Array(n); dist[s]=0;
+  for(let it=0;it<n;it++){ let u=-1,best=Infinity;
+    for(let i=0;i<n;i++)if(!vis[i]&&dist[i]<best){best=dist[i];u=i;}
+    if(u===-1)break; vis[u]=1; if(u===t)break;
+    for(const w of ADJ[u])if(!vis[w]){const cand=dist[u]+cost[w];if(cand<dist[w]){dist[w]=cand;prev[w]=u;}} }
+  if(prev[t]===-1)return[s];
+  const path=[t]; while(path[path.length-1]!==s){const p=prev[path[path.length-1]];if(p<0)return[s];path.push(p);}
+  return path.reverse(); }
+
+// ---------- guard (REINFORCE + baseline) ----------
+let theta,baseV,baseC,batchG,episodes,window_;
+function resetAgent(){ theta=new Float64Array(n); baseV=0;baseC=0;batchG=[];episodes=0;window_=[]; }
+function probs(){ const lo=new Float64Array(n);let mx=-Infinity;
+  for(let i=0;i<n;i++){lo[i]=theta[i]/S.tau;if(lo[i]>mx)mx=lo[i];}
+  let sum=0;for(let i=0;i<n;i++){lo[i]=Math.exp(lo[i]-mx);sum+=lo[i];}
+  for(let i=0;i<n;i++)lo[i]/=sum; return lo; }
+function sample(p){ let x=Math.random(),acc=0;for(let i=0;i<n;i++){acc+=p[i];if(x<=acc)return i;}return n-1; }
+function entropy(p){ let h=0;for(let i=0;i<n;i++)if(p[i]>0)h-=p[i]*Math.log(p[i]);return h; }
+
+function episode(learn,collect){
+  const start=rint(n),reach=reachable(start).filter(x=>x!==start),p=probs();
+  if(!reach.length)return{outcome:'timeout',frames:[]};
+  const painting=reach[rint(reach.length)];
+  let pos=start,target=painting,stolen=false;
+  const rsw=new Float64Array(n).fill(1000),acts=[],rews=[],frames=[]; let outcome='timeout';
+  const maxR=Math.max(CFG.maxSteps,4*n);   // episode horizon = config.py max_steps
+  for(let round=1;round<=maxR;round++){
+    const w=sample(p);
+    if(collect)frames.push({round,thief:pos,watched:w,painting,start,stolen,event:w===pos?'catch':''});
+    let reward=0,done=false;
+    if(w===pos){reward=1;done=true;outcome='catch';}
+    else if(stolen&&w===painting){reward=0.5;done=true;outcome='detect';if(collect&&frames.length)frames[frames.length-1].event='detect';}  // empty painting room spotted
+    else{ for(let i=0;i<n;i++)rsw[i]+=1; rsw[w]=0;
+      const cost=new Float64Array(n);for(let i=0;i<n;i++)cost[i]=1+S.beta*Math.pow(2,-rsw[i]);
+      const path=dijkstra(pos,target,cost);pos=path.length>1?path[1]:pos;
+      if(!stolen&&pos===painting){stolen=true;target=start;if(collect&&frames.length)frames[frames.length-1].event='steal_next';}
+      if(stolen&&pos===start){reward=-1;done=true;outcome='escape';} }
+    acts.push(w);rews.push(reward); if(done)break;
+  }
+  if(collect&&outcome==='escape')frames.push({round:frames.length+1,thief:pos,watched:-1,painting,start,stolen,event:'escape'});
+  if(learn)learn_(acts,rews,p);
+  window_.push(outcome==='catch'?1:0); if(window_.length>500)window_.shift();
+  return{outcome,frames};
+}
+function learn_(acts,rews,p){               // REINFORCE + baseline: g = (sum_t score_t) * (R - b)
+  const grad=new Float64Array(n);
+  let R=0;for(let t=0;t<rews.length;t++)R+=Math.pow(S.gamma,t)*rews[t];   // discounted return
+  const coeff=R-(S.baseline?baseV:0);        // baseline b = running mean of past returns (toggle on/off)
+  for(let t=0;t<acts.length;t++){const a=acts[t];for(let i=0;i<n;i++)grad[i]+=coeff*(((i===a?1:0)-p[i])/S.tau);}
+  baseC++; baseV+=(R-baseV)/baseC;           // update the baseline for the NEXT episode
+  batchG.push(grad);
+  if(batchG.length>=S.batch){ for(let i=0;i<n;i++){let m=0;for(const g of batchG)m+=g[i];theta[i]+=S.alpha*m/batchG.length;} batchG.length=0; }
+  episodes++;
+}
+
+// ---------- rendering ----------
+const cv=$('#mus');
+function fit(c){ const d=window.devicePixelRatio||1;
+  let w=c.clientWidth||(c.parentElement&&c.parentElement.clientWidth)||480; if(!w||w<40)w=480;
+  c.style.height=w+'px';                       // force a square; no CSS aspect-ratio needed
+  c.width=Math.round(w*d);c.height=Math.round(w*d);
+  const ctx=c.getContext('2d');ctx.setTransform(d,0,0,d,0,0);return{ctx,W:w,H:w}; }
+function geom(W,H){ const pad=Math.min(W,H)*0.05,cell=Math.min(W-2*pad,H-2*pad)/S.N; return{cell,ox:(W-cell*S.N)/2,oy:(H-cell*S.N)/2}; }
+function cellXY(g,i){ const r=Math.floor(i/S.N),c=i%S.N; return[g.ox+c*g.cell,g.oy+r*g.cell]; }
+function blocked(adj,r,c,dr,dc){ const nr=r+dr,nc=c+dc; if(nr<0||nr>=S.N||nc<0||nc>=S.N)return true; return !adj[r*S.N+c].includes(nr*S.N+nc); }
+function drawWalls(ctx,g,adj){ ctx.strokeStyle=COL('wall');ctx.lineWidth=Math.max(2.5,g.cell*0.09);ctx.lineCap='round';
+  for(let r=0;r<S.N;r++)for(let c=0;c<S.N;c++){ const x=g.ox+c*g.cell,y=g.oy+r*g.cell,s=g.cell;
+    const seg=(a,b,cc,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(cc,d);ctx.stroke();};
+    if(blocked(adj,r,c,-1,0))seg(x,y,x+s,y); if(blocked(adj,r,c,1,0))seg(x,y+s,x+s,y+s);
+    if(blocked(adj,r,c,0,-1))seg(x,y,x,y+s); if(blocked(adj,r,c,0,1))seg(x+s,y,x+s,y+s); } }
+
+// heatmap on a given canvas + probability vector
+function heat(c,p,adj,showPct){ const{ctx,W,H}=fit(c),g=geom(W,H); ctx.clearRect(0,0,W,H);
+  let mx=0;for(let i=0;i<n;i++)mx=Math.max(mx,p[i]); mx=mx||1; const ins=Math.max(1,g.cell*0.02);
+  for(let i=0;i<n;i++){ const[x,y]=cellXY(g,i);
+    ctx.fillStyle=`rgba(61,214,224,${0.05+0.95*(p[i]/mx)})`; ctx.fillRect(x+ins,y+ins,g.cell-2*ins,g.cell-2*ins);
+    if(showPct&&g.cell>=46){ ctx.fillStyle=p[i]>0.55*mx?COL('ground'):'rgba(231,234,240,.85)';
+      ctx.font=`600 ${g.cell*0.22}px ${COL('mono')}`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(Math.round(p[i]*100)+'%',x+g.cell/2,y+g.cell/2); } }
+  drawWalls(ctx,g,adj); }
+
+function diamond(ctx,x,y,d,hollow){ ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+  if(hollow){ctx.strokeStyle=COL('gold');ctx.globalAlpha=.45;ctx.lineWidth=2;ctx.strokeRect(-d/2,-d/2,d,d);}
+  else{ctx.fillStyle=COL('gold');ctx.shadowColor=COL('gold');ctx.shadowBlur=12;ctx.fillRect(-d/2,-d/2,d,d);
+    ctx.shadowBlur=0;ctx.fillStyle='rgba(12,15,23,.5)';ctx.fillRect(-d/6,-d/6,d/3,d/3);} ctx.restore(); }
+function drawScene(fr,fl){ const{ctx,W,H}=fit(cv),g=geom(W,H);ctx.clearRect(0,0,W,H);const ins=Math.max(1,g.cell*0.02);
+  for(let i=0;i<n;i++){const[x,y]=cellXY(g,i);ctx.fillStyle=COL('surface-2');ctx.fillRect(x+ins,y+ins,g.cell-2*ins,g.cell-2*ins);}
+  {const[x,y]=cellXY(g,fr.cur.start);ctx.save();ctx.setLineDash([4,4]);ctx.lineWidth=2;ctx.strokeStyle=COL('muted');ctx.strokeRect(x+ins+2,y+ins+2,g.cell-2*ins-4,g.cell-2*ins-4);ctx.restore();}
+  if(fr.cur.painting>=0){const[x,y]=cellXY(g,fr.cur.painting);diamond(ctx,x+g.cell/2,y+g.cell/2,g.cell*0.26,fr.cur.stolen);}
+  if(fr.cur.watched>=0){const[x,y]=cellXY(g,fr.cur.watched);ctx.save();ctx.fillStyle='rgba(61,214,224,.14)';ctx.fillRect(x+ins,y+ins,g.cell-2*ins,g.cell-2*ins);
+    ctx.strokeStyle=COL('cam');ctx.lineWidth=2.5;ctx.shadowColor=COL('cam');ctx.shadowBlur=14;ctx.strokeRect(x+ins+1,y+ins+1,g.cell-2*ins-2,g.cell-2*ins-2);ctx.restore();}
+  drawWalls(ctx,g,ADJ);
+  if(fr.traj&&fr.traj.length>1){            // dashed breadcrumb of the thief's route (shows it goes around walls)
+    ctx.save();ctx.setLineDash([4,5]);ctx.lineWidth=Math.max(1.5,g.cell*0.045);ctx.strokeStyle='rgba(255,90,82,.5)';
+    ctx.beginPath();fr.traj.forEach((rm,k)=>{const[x,y]=cellXY(g,rm);k?ctx.lineTo(x+g.cell/2,y+g.cell/2):ctx.moveTo(x+g.cell/2,y+g.cell/2);});ctx.stroke();ctx.restore();
+  }
+  const cc=i=>{const[x,y]=cellXY(g,i);return[x+g.cell/2,y+g.cell/2];};
+  const[cx,cy]=cc(fr.cur.thief),[nx,ny]=cc(fr.nxt.thief),tx=cx+(nx-cx)*fl,ty=cy+(ny-cy)*fl,rad=g.cell*0.18;
+  ctx.beginPath();ctx.arc(tx,ty,rad,0,7);ctx.fillStyle=COL('alert');ctx.shadowColor=COL('alert');ctx.shadowBlur=13;ctx.fill();ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(tx-rad*0.3,ty-rad*0.3,rad*0.3,0,7);ctx.fillStyle='rgba(255,255,255,.6)';ctx.fill();
+  if(fr.cur.stolen){ctx.save();ctx.translate(tx+rad*0.7,ty-rad*0.7);ctx.rotate(Math.PI/4);ctx.fillStyle=COL('gold');ctx.fillRect(-rad*0.22,-rad*0.22,rad*0.44,rad*0.44);ctx.restore();}
+  if(fr.banner){ctx.save();ctx.font=`700 ${Math.min(W,H)*0.1}px Georgia,serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(7,10,17,.55)';ctx.fillRect(0,H/2-H*0.09,W,H*0.18);ctx.fillStyle=COL(fr.banner==='CAUGHT'?'cam':(fr.banner==='DETECTED'?'gold':'alert'));ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=18;ctx.fillText(fr.banner,W/2,H/2);ctx.restore();}
+}
+function drawMain(){ if(state==='play'&&playFrames){return;} heat(cv,probs(),ADJ,true); }
+
+// ---------- snapshots ----------
+function snapshot(label){
+  const empty=$('#strip .empty'); if(empty)empty.remove();
+  const card=document.createElement('div');card.className='shot';
+  const c=document.createElement('canvas');c.width=300;c.height=300;
+  card.appendChild(c);
+  const lab=document.createElement('div');lab.className='lab';
+  const p=probs(); let top=0;for(let i=0;i<n;i++)if(p[i]>p[top])top=i;
+  lab.innerHTML=`<span>${label}</span><b>max ${Math.round(p[top]*100)}%</b>`;
+  card.appendChild(lab);
+  $('#strip').appendChild(card);
+  heat(c,p,ADJ,S.N<=4);
+  $('#strip').scrollLeft=$('#strip').scrollWidth;
+}
+
+// ---------- experiment loop ----------
+let state='setup', returnState='setup';     // setup | running | done | play
+let nextSnap=SNAP;
+let playFrames=null,playIdx=0,playInterp=0,playLast=0;
+function epsPerFrame(){ return Math.max(8,Math.round(S.target/300)); } // ~5s run, watchable
+
+function stats(){ const p=probs();
+  $('#cr').textContent=window_.length?Math.round(100*window_.reduce((a,b)=>a+b,0)/window_.length)+'%':'-';
+  $('#ent').textContent=entropy(p).toFixed(2);
+  $('#ep').textContent=episodes; $('#epN').textContent=episodes;
+  $('#bar').style.width=(100*Math.min(1,episodes/S.target))+'%';
+}
+function finish(){ state='done'; snapshot('Final · '+episodes); setMode('done: trained policy');
+  $('#run').textContent='↻ Run again'; $('#run').classList.add('primary');
+  $('#play').disabled=false; $('#edit').disabled=false; lockInputs(false); drawMain(); stats(); }
+
+function tick(now){
+  if(state==='play'&&playFrames){
+    const step=850; if(!playLast)playLast=now; playInterp+=(now-playLast)/step; playLast=now;
+    if(playInterp>=1){playInterp=0;playIdx++;}
+    if(playIdx>=playFrames.length-1){ const last=playFrames[playFrames.length-1];
+      drawScene({cur:last,nxt:last,banner:last.event==='catch'?'CAUGHT':(last.event==='escape'?'ESCAPED':(last.event==='detect'?'DETECTED':null)),traj:playFrames.map(f=>f.thief)},0);
+      $('#verdict').textContent=last.event==='catch'?'CAUGHT':(last.event==='escape'?'ESCAPED':(last.event==='detect'?'DETECTED':'TIMEOUT'));
+      $('#verdict').dataset.s=last.event==='catch'?'catch':(last.event==='escape'?'escape':(last.event==='detect'?'detect':''));
+      state=returnState; setMode(returnState==='done'?'done: trained policy':'setup: place your walls'); playFrames=null;playLast=0; drawMain();
+    } else { const cur=playFrames[playIdx],nxt=playFrames[Math.min(playIdx+1,playFrames.length-1)];
+      drawScene({cur,nxt,banner:null,traj:playFrames.slice(0,playIdx+1).map(f=>f.thief)},playInterp);
+      $('#verdict').textContent=cur.stolen?'PAINTING STOLEN':'IN PROGRESS';$('#verdict').dataset.s=''; }
+  } else if(state==='running'){
+    const k=epsPerFrame();
+    for(let i=0;i<k&&episodes<S.target;i++){ episode(true,false);
+      if(episodes>=nextSnap){ snapshot('Episode '+nextSnap); nextSnap+=SNAP; } }
+    drawMain(); stats();
+    if(episodes>=S.target) finish();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ---------- ui helpers ----------
+function setMode(t){ $('#modeLbl').textContent=t; }
+function lockInputs(lock){ ['tau','beta','alpha','gamma','N','episodes'].forEach(id=>{const e=$('#'+id);if(e)e.disabled=lock;});
+  document.querySelectorAll('#bl button').forEach(b=>b.disabled=lock);
+  cv.classList.toggle('editable', !lock && state!=='running'); }
+function startRun(){ S.target=Math.max(2000,Math.min(60000,parseInt($('#episodes').value)||8000));
+  $('#tot').textContent=S.target; rebuild(); resetAgent(); nextSnap=SNAP;
+  $('#strip').innerHTML='<div class="empty">Running...</div>';
+  state='running'; setMode('running: learning'); $('#verdict').textContent='-';$('#verdict').dataset.s='';
+  $('#run').textContent='⏸ Stop'; $('#run').classList.remove('primary');
+  $('#play').disabled=true; $('#edit').disabled=true; lockInputs(true); }
+
+// ---------- controls ----------
+$('#run').onclick=()=>{ if(state==='running'){ finish(); } else { startRun(); } };
+$('#play').onclick=()=>{ if(state==='running'||state==='play')return; const r=episode(false,true); if(!r.frames.length)return;
+  returnState=(state==='done')?'done':'setup'; playFrames=r.frames;playIdx=0;playInterp=0;playLast=0; state='play'; setMode('replay: sample game'); };
+$('#edit').onclick=()=>{ state='setup'; setMode('setup: place your walls'); resetAgent();
+  $('#strip').innerHTML='<div class="empty">Snapshots will appear here as the experiment runs.</div>';
+  $('#run').textContent='▶ Run experiment'; $('#run').classList.add('primary');
+  $('#play').disabled=false; $('#edit').disabled=true; lockInputs(false); drawMain(); stats(); };
+
+$('#tau').oninput=e=>{S.tau=+e.target.value;$('#vTau').textContent=S.tau.toFixed(2);if(state!=='running'&&state!=='play')drawMain();};
+$('#beta').oninput=e=>{S.beta=+e.target.value;$('#vBeta').textContent=S.beta.toFixed(1);};
+$('#alpha').oninput=e=>{S.alpha=+e.target.value;$('#vAlpha').textContent=S.alpha.toFixed(2);};
+$('#gamma').oninput=e=>{S.gamma=+e.target.value;$('#vGamma').textContent=S.gamma.toFixed(2);};
+$('#episodes').oninput=e=>{$('#tot').textContent=Math.max(2000,Math.min(60000,parseInt(e.target.value)||8000));};
+$('#N').oninput=e=>{ S.N=+e.target.value;$('#vN').textContent=S.N;$('#sz').textContent=S.N+'×'+S.N;
+  walls.clear(); rebuild(); resetAgent(); stats(); drawMain(); };
+document.querySelectorAll('#bl button').forEach(b=>b.onclick=()=>{ if(b.disabled)return; S.baseline=(b.dataset.b==='1');
+  document.querySelectorAll('#bl button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
+cv.onclick=ev=>{ if(state==='running'||state==='play')return;
+  const r=cv.getBoundingClientRect(),g=geom(r.width,r.height);
+  const px=ev.clientX-r.left-g.ox,py=ev.clientY-r.top-g.oy;
+  const c=Math.floor(px/g.cell),row=Math.floor(py/g.cell); if(c<0||c>=S.N||row<0||row>=S.N)return;
+  const lx=px-c*g.cell,ly=py-row*g.cell,d={l:lx,r:g.cell-lx,t:ly,b:g.cell-ly};
+  const edge=Object.keys(d).reduce((a,k)=>d[k]<d[a]?k:a);
+  let nr=row,nc=c; if(edge==='l')nc--;else if(edge==='r')nc++;else if(edge==='t')nr--;else nr++;
+  if(nr<0||nr>=S.N||nc<0||nc>=S.N)return;
+  const a=row*S.N+c,b=nr*S.N+nc,key=Math.min(a,b)+'_'+Math.max(a,b);
+  walls.has(key)?walls.delete(key):walls.add(key); rebuild(); drawMain(); };
+
+let rt;new ResizeObserver(()=>{clearTimeout(rt);rt=setTimeout(()=>{ if(state==='play'&&playFrames){const cur=playFrames[Math.min(playIdx,playFrames.length-1)];drawScene({cur,nxt:cur,banner:null,traj:playFrames.slice(0,playIdx+1).map(f=>f.thief)},0);}else drawMain(); },80);}).observe(cv.parentElement||cv);
+
+// sync the on-screen controls to the stamped config defaults (single source of truth)
+function syncUI(){
+  $('#tau').value=CFG.tau; $('#vTau').textContent=CFG.tau.toFixed(2);
+  $('#beta').value=CFG.beta; $('#vBeta').textContent=CFG.beta.toFixed(1);
+  $('#alpha').value=CFG.alpha; $('#vAlpha').textContent=CFG.alpha.toFixed(2);
+  $('#gamma').value=CFG.gamma; $('#vGamma').textContent=CFG.gamma.toFixed(2);
+  $('#N').value=CFG.N; $('#vN').textContent=CFG.N; $('#sz').textContent=CFG.N+'×'+CFG.N;
+  $('#episodes').value=CFG.episodes; $('#tot').textContent=CFG.episodes;
+}
+
+// init: draw now, and again once layout is final (so the canvas is never blank)
+rebuild(); resetAgent(); syncUI(); drawMain(); stats();
+window.addEventListener('load',()=>{ drawMain(); stats(); });
+requestAnimationFrame(()=>{ drawMain(); stats(); });
+</script>
+</body>
+</html>

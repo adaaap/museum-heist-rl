@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / type caches
+.pytest_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
+
+# Office temp/lock files
+~$*
+
+# Large experiment outputs (regenerated via experiments/ scripts)
+results/
+
+# Test suite kept local, not part of the delivered package
+tests/
+
+# Notes and report kept local, delivered separately (not via the code repo)
+docs/
+
+# Slides kept local
+slides/

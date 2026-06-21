@@ -1,0 +1,19 @@
+[project]
+name = "museum-heist"
+version = "0.1.0"
+description = "Museum Heist: a policy-gradient reinforcement learning project."
+authors = [{name = "Ada Pena"}]
+requires-python = ">=3.9"  # verified on 3.9; 3.11 also supported
+dependencies = [
+    "numpy>=1.26",
+    "gymnasium>=1.0",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+slides = ["python-pptx>=0.6"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
